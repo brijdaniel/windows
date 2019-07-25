@@ -29,7 +29,7 @@ void setup() {
 	pinMode(encoderPin, INPUT_PULLUP);
 
 	// Interrupt for encoder
-	attachInterrupt(digitalPinToInterrupt(encoderPin), update_encoder, RISING);
+	attachInterrupt(digitalPinToInterrupt(encoderPin), update_encoder, FALLING);
 
 	// connect to wifi
 	Serial.print("Connecting to ");
@@ -73,15 +73,15 @@ void motor_back(void) {
 	digitalWrite(motor1Pin2, LOW); 
 }
 
-void motor_stop(void) {
-	analogWrite(enable1Pin, 0);
-	digitalWrite(motor1Pin1, LOW);
-	digitalWrite(motor1Pin2, LOW);
+void motor_stop(void) { // these pin states apply braking
+	analogWrite(enable1Pin, 1000);
+	digitalWrite(motor1Pin1, HIGH);
+	digitalWrite(motor1Pin2, HIGH);
 }
 
 // function to read encoder
 void encoder_count(float rotations) {
-  	rotations = 150*11*rotations; // 150:1 gearbox reduction and ~11? ticks per rotation
+  	rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
 	while (encoder_value < rotations) {
     	ESP.wdtFeed();
 	}
