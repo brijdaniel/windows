@@ -3,6 +3,8 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
+void ICACHE_RAM_ATTR update_encoder();
+
 // Motor pins
 const char motor1Pin1 = D7;
 const char motor1Pin2 = D6;
@@ -10,29 +12,24 @@ const char enable1Pin = D8;
 
 // Encoder pin
 const char encoderPin = D5;
-
-// PWM properties
-/*
-const int freq = 30000;
-const int pwmChannel = 0;
-const int resolution = 8;
-int dutyCycle = 200;
-*/
+volatile long encoder_value = 0;
 
 // setup mqtt client
 WiFiClient wifiClient;
 PubSubClient client(mqttServer, mqttPort, wifiClient);
 
-
 void setup() {
+	// start serial
+	Serial.begin(115200);
+
 	// set up pins
 	pinMode(motor1Pin1, OUTPUT);
 	pinMode(motor1Pin2, OUTPUT);
 	pinMode(enable1Pin, OUTPUT);
-	pinMode(encoderPin, INPUT);
+	pinMode(encoderPin, INPUT_PULLUP);
 
-	// start serial
-	Serial.begin(115200);
+	// Interrupt for encoder
+	attachInterrupt(digitalPinToInterrupt(encoderPin), update_encoder, RISING);
 
 	// connect to wifi
 	Serial.print("Connecting to ");
@@ -65,60 +62,39 @@ void setup() {
 
 // functions to drive motor
 void motor_fwd(void) {
-	analogWrite(enable1Pin, 2000);
+	analogWrite(enable1Pin, 1000);
 	digitalWrite(motor1Pin1, LOW);
 	digitalWrite(motor1Pin2, HIGH); 
-	Serial.println("Motor Forward");
 }
 
 void motor_back(void) {
 	analogWrite(enable1Pin, 1000);
 	digitalWrite(motor1Pin1, HIGH);
 	digitalWrite(motor1Pin2, LOW); 
-	Serial.println("Motor Backwards"); 
 }
 
 void motor_stop(void) {
 	analogWrite(enable1Pin, 0);
 	digitalWrite(motor1Pin1, LOW);
 	digitalWrite(motor1Pin2, LOW);
-	Serial.println("Motor stopped");
 }
 
 // function to read encoder
 void encoder_count(float rotations) {
-	int i = 0;
-	int state = 0;
-	int prev_state = 0;
-  rotations = (145*20)*rotations; // 150:1 gearbox reduction and ~21? ticks per rotation
-	while (i < rotations) {
-		state = digitalRead(encoderPin);
-		if (state != prev_state) { // pretty sure this will count two ticks per actual tick
-			i++;
-			//Serial.println(i); 
-		}
-		prev_state = state;
-    ESP.wdtFeed();
+  	rotations = 150*11*rotations; // 150:1 gearbox reduction and ~11? ticks per rotation
+	while (encoder_value < rotations) {
+    	ESP.wdtFeed();
 	}
+}
+
+void update_encoder() {
+	encoder_value++;
 }
 
 // MQTT callback function
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
-
-  /*
-  Serial.print("Message:");
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-
-  byte msg_byte = *payload;
-  Serial.println(msg_byte);
-  int msg = (int) msg_byte - '0'; // minus 0 to convert ascii to int
-  Serial.println(msg);
-  */
   
   // handle JSON payload
   StaticJsonDocument<256> doc;
@@ -129,13 +105,19 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println(rotations);
   
   if (direction == "fwd") {
+	  encoder_value = 0;
+	  Serial.println("Motor Forward");
 	  motor_fwd();
 	  encoder_count(rotations); 
 	  motor_stop();
+	  Serial.println("Motor stopped");
   } else if (direction == "back") {
+  	encoder_value = 0;
+  	Serial.println("Motor Backwards"); 
   	motor_back();
   	encoder_count(rotations); 
   	motor_stop();
+  	Serial.println("Motor stopped");
   }
 }
 
