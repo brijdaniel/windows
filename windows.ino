@@ -14,6 +14,12 @@ const char enable1Pin = D8;
 const char encoderPin = D5;
 volatile long encoder_value = 0;
 
+// Encoder interrupt timer
+unsigned long timer;
+
+// Flag to make sure motor starts before timer is checked
+bool flag = false;
+
 // setup mqtt client
 WiFiClient wifiClient;
 PubSubClient client(mqttServer, mqttPort, wifiClient);
@@ -78,7 +84,7 @@ void motor_stop(void) {
 	analogWrite(enable1Pin, 1000);
 	digitalWrite(motor1Pin1, HIGH);
 	digitalWrite(motor1Pin2, HIGH);
-  delay(100);
+  delay(200);
   
   // When motor is stopped, turn off all pins
   analogWrite(enable1Pin, 0);
@@ -88,14 +94,25 @@ void motor_stop(void) {
 
 // function to read encoder
 void encoder_count(float rotations) {
-  	rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
+  encoder_value = 0;
+  rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
 	while (encoder_value < rotations) {
-    	ESP.wdtFeed();
+   /* if (flag) {
+    	if ((millis() - timer) > 10000) {
+        break;
+    	}
+    } */
+    ESP.wdtFeed();
 	}
+  // Reset timer flag
+  flag = false;
 }
 
 void update_encoder() {
 	encoder_value++;
+  flag = true;
+  timer = millis();
+  Serial.println(timer);
 }
 
 // MQTT callback function
@@ -112,14 +129,12 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println(rotations);
   
   if (direction == "fwd") {
-	  encoder_value = 0;
 	  Serial.println("Motor Forward");
 	  motor_fwd();
 	  encoder_count(rotations); 
 	  motor_stop();
 	  Serial.println("Motor stopped");
   } else if (direction == "back") {
-  	encoder_value = 0;
   	Serial.println("Motor Backwards"); 
   	motor_back();
   	encoder_count(rotations); 
