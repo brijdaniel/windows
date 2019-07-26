@@ -73,10 +73,17 @@ void motor_back(void) {
 	digitalWrite(motor1Pin2, LOW); 
 }
 
-void motor_stop(void) { // these pin states apply braking
+void motor_stop(void) {
+	// Motor braking
 	analogWrite(enable1Pin, 1000);
 	digitalWrite(motor1Pin1, HIGH);
 	digitalWrite(motor1Pin2, HIGH);
+  delay(100);
+  
+  // When motor is stopped, turn off all pins
+  analogWrite(enable1Pin, 0);
+  digitalWrite(motor1Pin1, LOW);
+  digitalWrite(motor1Pin2, LOW);
 }
 
 // function to read encoder
