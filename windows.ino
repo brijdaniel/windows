@@ -21,7 +21,7 @@ unsigned long timer;
 bool flag = false;
 
 // Window status flag
-char window_status;
+String window_status;
 
 // setup mqtt client
 WiFiClient wifiClient;
@@ -126,7 +126,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   if (topic == "pihouse/windows/status") {
   	byte msg_byte = *payload;
-  	window_status = (char) msg_byte;
+  	window_status = (String) msg_byte;
   }
   
   // handle JSON payload
