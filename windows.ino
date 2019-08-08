@@ -147,9 +147,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
   	  encoder_count(rotations); 
   	  motor_stop();
   	  Serial.println("Motor stopped");
-    } else if (direction == "close" && window_status != "close") {
+    } else if (direction == "close" && window_status != "closed") {
     	Serial.println("Motor Backwards"); 
-    	client.publish("pihouse/windows/status", "close");
+    	client.publish("pihouse/windows/status", "closed");
     	encoder_value = 0;
       motor_back();
     	encoder_count(rotations); 
