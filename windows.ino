@@ -20,8 +20,8 @@ unsigned long timer;
 // Flag to make sure motor starts before timer is checked
 bool flag = false;
 
-// Window status flag
-String window_status;
+// Window status
+char* window_status;
 
 // setup mqtt client
 WiFiClient wifiClient;
@@ -101,12 +101,12 @@ void motor_stop(void) {
 void encoder_count(float rotations) {
   rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
 	while (encoder_value < rotations) {
-    if (flag) {
+   /* if (flag) {
     	if (millis()-timer > 100) {
         break;
     	}
       //Serial.println(millis()-timer);
-    }
+    } */
     ESP.wdtFeed();
 	}
   // Reset timer flag
@@ -124,35 +124,38 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
 
-  if (topic == "pihouse/windows/status") {
-  	byte msg_byte = *payload;
-  	window_status = (String) msg_byte;
+  if (strcmp(topic, "pihouse/windows/status") == 0) {
+  	payload[length] = '\0';
+  	window_status = (char*)payload; 
+    Serial.println(window_status); 
   }
   
-  // handle JSON payload
-  StaticJsonDocument<256> doc;
-  deserializeJson(doc, payload, length);
-  const String direction = doc["direction"];
-  const float rotations = doc["rotations"];
-  Serial.println(direction);
-  Serial.println(rotations);
-  
-  if (direction == "open" && window_status != "True") {
-	  Serial.println("Motor Forward");
-      client.publish("pihouse/windows/status", "True");
-      encoder_value = 0;
-	  motor_fwd();
-	  encoder_count(rotations); 
-	  motor_stop();
-	  Serial.println("Motor stopped");
-  } else if (direction == "close" && window_status != "False") {
-  	Serial.println("Motor Backwards"); 
-  	client.publish("pihouse/windows/status", "False");
-  	encoder_value = 0;
-    motor_back();
-  	encoder_count(rotations); 
-  	motor_stop();
-  	Serial.println("Motor stopped");
+  if (strcmp(topic, "pihouse/windows/control") == 0) {
+    // handle JSON payload
+    StaticJsonDocument<256> doc;
+    deserializeJson(doc, payload, length);
+    const String direction = doc["direction"];
+    const float rotations = doc["rotations"];
+    Serial.println(direction);
+    Serial.println(rotations);
+    
+    if (direction == "open" && window_status != "open") {
+  	  Serial.println("Motor Forward");
+        client.publish("pihouse/windows/status", "open");
+        encoder_value = 0;
+  	  motor_fwd();
+  	  encoder_count(rotations); 
+  	  motor_stop();
+  	  Serial.println("Motor stopped");
+    } else if (direction == "close" && window_status != "close") {
+    	Serial.println("Motor Backwards"); 
+    	client.publish("pihouse/windows/status", "close");
+    	encoder_value = 0;
+      motor_back();
+    	encoder_count(rotations); 
+    	motor_stop();
+    	Serial.println("Motor stopped");
+    }
   }
 }
 
