@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
+// Set ISR to increment encoder when it ticks
 void ICACHE_RAM_ATTR update_encoder();
 
 // Motor pins
@@ -14,8 +15,10 @@ const char enable1Pin = D8;
 const char encoderPin = D5;
 volatile long encoder_value = 0;
 
-// Encoder interrupt timer
-unsigned long timer;
+// Timers to monitor motor stall
+unsigned long current_time;
+unsigned long previous_time;
+unsigned long stall_time = 200;
 
 // Flag to make sure motor starts before timer is checked
 bool flag = false;
@@ -101,22 +104,27 @@ void motor_stop(void) {
 void encoder_count(float rotations) {
   rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
 	while (encoder_value < rotations) {
-   /* if (flag) {
-    	if (millis()-timer > 100) {
+   // check motor has not stalled
+   if (flag) { 
+    	current_time = millis();
+      /*if (current_time - previous_time > stall_time) {
+        Serial.println("Motor stalled");
         break;
-    	}
-      //Serial.println(millis()-timer);
-    } */
+    	}*/
+      Serial.println(millis()-current_time);
+    }
     ESP.wdtFeed();
 	}
   // Reset timer flag
   flag = false;
 }
 
+// ISR to increment encoder value (fed to encoder_count)
+// and set flag and timer to monitor motor stall
 void update_encoder() {
 	encoder_value++;
   flag = true;
-  timer = millis();
+  previous_time = millis();
 }
 
 // MQTT callback function
@@ -141,8 +149,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     
     if (direction == "open" && window_status != "open") {
   	  Serial.println("Motor Forward");
-        client.publish("pihouse/windows/status", "open");
-        encoder_value = 0;
+      client.publish("pihouse/windows/status", "open");
+      encoder_value = 0;
   	  motor_fwd();
   	  encoder_count(rotations); 
   	  motor_stop();
