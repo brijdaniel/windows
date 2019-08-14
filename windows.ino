@@ -3,7 +3,7 @@
 #include <ArduinoJson.h>
 #include "config.h"
 
-// Set ISR to increment encoder when it ticks
+// Declare update_encoder as ISR
 void ICACHE_RAM_ATTR update_encoder();
 
 // Motor pins
@@ -16,36 +16,34 @@ const char encoderPin = D5;
 volatile long encoder_value = 0;
 
 // Timers to monitor motor stall
+// these are whats fucking up in if condition in encoder_count fn
 unsigned long current_time;
 unsigned long previous_time;
-unsigned long stall_time = 200;
-
-// Flag to make sure motor starts before timer is checked
-bool flag = false;
+unsigned long stall_time = 100; // 100ms 
 
 // Window status
 char* window_status;
 
-// setup mqtt client
+// Setup mqtt client
 WiFiClient wifiClient;
 PubSubClient client(mqttServer, mqttPort, wifiClient);
 
 void setup() {
-	// start serial
+	// Start serial comms
 	Serial.begin(115200);
 
-	// set up pins
+	// Set up pins
 	pinMode(motor1Pin1, OUTPUT);
 	pinMode(motor1Pin2, OUTPUT);
 	pinMode(enable1Pin, OUTPUT);
 	pinMode(encoderPin, INPUT_PULLUP);
 
-	// Interrupt for encoder
+	// Set encoder interrupt to pin
 	attachInterrupt(digitalPinToInterrupt(encoderPin), update_encoder, FALLING);
 
-	// connect to wifi
+	// Connect to wifi
 	Serial.print("Connecting to ");
-  	Serial.println(ssid);
+  Serial.println(ssid);
 	WiFi.begin(ssid, wifiPassword);
 
 	while (WiFi.status() != WL_CONNECTED) {
@@ -53,7 +51,7 @@ void setup() {
 	  Serial.print(".");
 	}
 
-	// Debugging - Output the IP Address of the ESP8266
+	// Print IP Address of the ESP8266
 	Serial.println("WiFi connected");
 	Serial.print("IP address: ");
 	Serial.println(WiFi.localIP());
@@ -62,16 +60,17 @@ void setup() {
 	client.setServer(mqttServer, mqttPort);
 	client.setCallback(callback);
 
-	// client.connect returns a bool value to let us know if the connection was successful.
+	// Check if connection was successful
 	if (client.connect(clientID)) {
 	  Serial.println("Connected to MQTT Broker!");
 	}
 	else {
 	  Serial.println("Connection to MQTT Broker failed...");
 	}
+  // Subscribe to mqtt topics and publish request for window status from server database
 	client.subscribe("pihouse/windows/control");
 	client.subscribe("pihouse/windows/status");
-	client.publish("pihouse/windows/status", "request"); // not sure if I'll receive reply bcos loop hasnt started yet
+	client.publish("pihouse/windows/status", "request");
 }
 
 // functions to drive motor
@@ -92,7 +91,7 @@ void motor_stop(void) {
 	analogWrite(enable1Pin, 1000);
 	digitalWrite(motor1Pin1, HIGH);
 	digitalWrite(motor1Pin2, HIGH);
-  	delay(200);
+  delay(200);
   
   // When motor is stopped, turn off all pins
   analogWrite(enable1Pin, 0);
@@ -100,44 +99,69 @@ void motor_stop(void) {
   digitalWrite(motor1Pin2, LOW);
 }
 
-// function to read encoder
+/* 
+Function to read encoder
+Checks encoder value is less than the desired number of motor rotations
+Also checks time since last encoder tick, to make sure motor hasn't stalled
+This function is essentially just a while loop that does nothing, as when this
+function ends, the next function to be called is motor_stop
+*/
 void encoder_count(float rotations) {
   rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
 	while (encoder_value < rotations) {
-   // check motor has not stalled
-   if (flag) { 
+   
+   // Motor stall monitoring
+   if (encoder_value > 50) { // make sure the motor has spun up to speed before we check if its stalled
     	current_time = millis();
-      /*if (current_time - previous_time > stall_time) {
+      /* 
+      This fucking condition keeps tripping even when the motor isnt stalled
+      I've printed the output of current_time - previous_time and it is always 0-2ms
+      I've tried setting stall_time to 1s, 100s etc and still trips
+      All values are declared as unsigned longs, doesnt seem to be an overflow issue as it happens
+      straight away
+      Have read online that the millis implementation can mess up depending on cpu freq and bit size
+      but after printing the output of all these values that doesnt seem to be the case?
+      previous_time is updated from the update_encoder ISR
+      */
+      if ((current_time - previous_time) >= stall_time) {
         Serial.println("Motor stalled");
         break;
-    	}*/
-      Serial.println(millis()-current_time);
+    	}
     }
-    ESP.wdtFeed();
+    ESP.wdtFeed(); // Feed the watchdog so it doesnt reboot the controller
 	}
-  // Reset timer flag
-  flag = false;
 }
 
-// ISR to increment encoder value (fed to encoder_count)
-// and set flag and timer to monitor motor stall
+// ISR to increment encoder value (input to encoder_count)
 void update_encoder() {
 	encoder_value++;
-  flag = true;
   previous_time = millis();
 }
 
-// MQTT callback function
+// MQTT callback function, executed when a message is received
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
 
+  // if topic is window status then store and print window_status
   if (strcmp(topic, "pihouse/windows/status") == 0) {
   	payload[length] = '\0';
   	window_status = (char*)payload; 
     Serial.println(window_status); 
   }
   
+  /* 
+  if topic is control, ie command to open or close window, then payload will be json
+  containing direction (ie open or close) and how many rotations of the motor (input to encoder_count)
+  Regardless of if direction is open or close, logic is as follows:
+  - Store payload data into direction and rotations variables
+  - Check the window isnt already in the state we are trying to drive it to
+  - Publish that the state has changed (this is pre-emptive)
+  - Set global encoder_value var to 0 (used in the encoder_count fn and incremented by update_encoder ISR)
+  - Call fn to start driving motor either fwds or back
+  - Start monitoring encoder ticks with encoder_count (this while loop is now blocking, but still getting interrupts from ISR)
+  - When while loop expires, ie when number of rotations is reached, move to next line which is motor_stop
+  */
   if (strcmp(topic, "pihouse/windows/control") == 0) {
     // handle JSON payload
     StaticJsonDocument<256> doc;
@@ -167,6 +191,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   }
 }
 
+// Main arduino loop, just runs MQTT loop, everthing else is interrupt driven
 void loop() {
 	client.loop();
 }
