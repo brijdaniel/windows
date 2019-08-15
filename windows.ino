@@ -113,6 +113,10 @@ void encoder_count(float rotations) {
    // Motor stall monitoring
    if (encoder_value > 50) { // make sure the motor has spun up to speed before we check if its stalled
     	current_time = millis();
+      // Using timer variable to fix overflow problem of 32-bit unsigned long
+      // int overflows more often, but returns -1 when it does, so just added 2
+      // ensures its always positive
+      int timer = current_time - previous_time + 2;
       /* 
       This fucking condition keeps tripping even when the motor isnt stalled
       I've printed the output of current_time - previous_time and it is always 0-2ms
@@ -123,8 +127,9 @@ void encoder_count(float rotations) {
       but after printing the output of all these values that doesnt seem to be the case?
       previous_time is updated from the update_encoder ISR
       */
-      if ((current_time - previous_time) >= stall_time) {
+      if (timer >= stall_time) {
         Serial.println("Motor stalled");
+        Serial.println(timer);
         break;
     	}
     }
