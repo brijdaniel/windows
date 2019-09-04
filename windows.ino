@@ -2,26 +2,28 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "config.h"
+#include "Motor.h"
+#include "Encoder.h"
 
-// Declare update_encoder as ISR
-void ICACHE_RAM_ATTR update_encoder();
-
-// Motor pins
+// Motor pins and speed
 const char motor1Pin1 = D7;
 const char motor1Pin2 = D6;
 const char enable1Pin = D8; 
+int speed = 1000; // full speed
+
+// Create motor object(s)
+Motor motor1(enable1Pin, motor1Pin1, motor1Pin2, speed);
 
 // Encoder pin
-const char encoderPin = D5;
-volatile long encoder_value = 0;
+const char encoder1Pin = D5;
 
-// Timers to monitor motor stall
-// these are whats fucking up in if condition in encoder_count fn
-volatile unsigned long current_time;
-volatile unsigned long previous_time;
-unsigned long stall_time = 100; // 100ms 
+// Create encoder object(s)
+Encoder encoder1(encoder1Pin);
 
-// Window status
+// Declare update_encoder as ISR
+void ICACHE_RAM_ATTR encoder1.update_encoder();
+
+// Declare Window status variable
 char* window_status;
 
 // Setup mqtt client
@@ -32,18 +34,12 @@ void setup() {
 	// Start serial comms
 	Serial.begin(115200);
 
-	// Set up pins
-	pinMode(motor1Pin1, OUTPUT);
-	pinMode(motor1Pin2, OUTPUT);
-	pinMode(enable1Pin, OUTPUT);
-	pinMode(encoderPin, INPUT_PULLUP);
-
 	// Set encoder interrupt to pin
-	attachInterrupt(digitalPinToInterrupt(encoderPin), update_encoder, FALLING);
+	attachInterrupt(digitalPinToInterrupt(encoder1Pin), encoder1.update_encoder, FALLING);
 
 	// Connect to wifi
 	Serial.print("Connecting to ");
-  Serial.println(ssid);
+  	Serial.println(ssid);
 	WiFi.begin(ssid, wifiPassword);
 
 	while (WiFi.status() != WL_CONNECTED) {
@@ -67,74 +63,10 @@ void setup() {
 	else {
 	  Serial.println("Connection to MQTT Broker failed...");
 	}
-  // Subscribe to mqtt topics and publish request for window status from server database
+  	// Subscribe to mqtt topics and publish request for window status from server database
 	client.subscribe("pihouse/windows/control");
 	client.subscribe("pihouse/windows/status");
 	client.publish("pihouse/windows/status", "request");
-}
-
-// functions to drive motor
-void motor_fwd(void) {
-	analogWrite(enable1Pin, 1000);
-	digitalWrite(motor1Pin1, LOW);
-	digitalWrite(motor1Pin2, HIGH); 
-}
-
-void motor_back(void) {
-	analogWrite(enable1Pin, 1000);
-	digitalWrite(motor1Pin1, HIGH);
-	digitalWrite(motor1Pin2, LOW); 
-}
-
-void motor_stop(void) {
-	// Motor braking
-	analogWrite(enable1Pin, 1000);
-	digitalWrite(motor1Pin1, HIGH);
-	digitalWrite(motor1Pin2, HIGH);
-  delay(200);
-  
-  // When motor is stopped, turn off all pins
-  analogWrite(enable1Pin, 0);
-  digitalWrite(motor1Pin1, LOW);
-  digitalWrite(motor1Pin2, LOW);
-}
-
-/* 
-Function to read encoder
-Checks encoder value is less than the desired number of motor rotations
-Also checks time since last encoder tick, to make sure motor hasn't stalled
-This function is essentially just a while loop that does nothing, as when this
-function ends, the next function to be called is motor_stop
-*/
-void encoder_count(float rotations) {
-  rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
-	while (encoder_value < rotations) {
-   
-   // Motor stall monitoring
-   if (encoder_value > 50) { // make sure the motor has spun up to speed before we check if its stalled
-    	current_time = millis();
-      // Using timer variable to fix overflow problem of 32-bit unsigned long
-      // int overflows more often, but returns -1 when it does, so just added 2
-      // ensures its always positive
-      unsigned int timer = current_time - previous_time + 2;
-      /* 
-      Check if motor has stalled by making sure time between encoder ticks
-      doesnt exceed global stall_time variable (currently set to 100ms)
-      */
-      if (timer >= stall_time) {
-        Serial.println("Motor stalled");
-        Serial.println(timer);
-        break;
-    	}
-    }
-    ESP.wdtFeed(); // Feed the watchdog so it doesnt reboot the controller
-	}
-}
-
-// ISR to increment encoder value (input to encoder_count)
-void update_encoder() {
-	encoder_value++;
-  previous_time = millis();
 }
 
 // MQTT callback function, executed when a message is received
@@ -173,18 +105,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (direction == "open" && window_status != "open") {
   	  Serial.println("Motor Forward");
       client.publish("pihouse/windows/status", "open");
-      encoder_value = 0;
-  	  motor_fwd();
-  	  encoder_count(rotations); 
-  	  motor_stop();
+  	  motor1.m_fwd();
+  	  encoder1.encoder_count(rotations); 
+  	  motor1.m_stop();
   	  Serial.println("Motor stopped");
     } else if (direction == "close" && window_status != "closed") {
     	Serial.println("Motor Backwards"); 
     	client.publish("pihouse/windows/status", "closed");
-    	encoder_value = 0;
-      motor_back();
-    	encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
-    	motor_stop();
+      motor1.m_back();
+    	encoder1.encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
+    	motor1.m_stop();
     	Serial.println("Motor stopped");
     }
   }
