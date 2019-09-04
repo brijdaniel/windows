@@ -17,8 +17,8 @@ volatile long encoder_value = 0;
 
 // Timers to monitor motor stall
 // these are whats fucking up in if condition in encoder_count fn
-unsigned long current_time;
-unsigned long previous_time;
+volatile unsigned long current_time;
+volatile unsigned long previous_time;
 unsigned long stall_time = 100; // 100ms 
 
 // Window status
@@ -116,16 +116,10 @@ void encoder_count(float rotations) {
       // Using timer variable to fix overflow problem of 32-bit unsigned long
       // int overflows more often, but returns -1 when it does, so just added 2
       // ensures its always positive
-      int timer = current_time - previous_time + 2;
+      unsigned int timer = current_time - previous_time + 2;
       /* 
-      This fucking condition keeps tripping even when the motor isnt stalled
-      I've printed the output of current_time - previous_time and it is always 0-2ms
-      I've tried setting stall_time to 1s, 100s etc and still trips
-      All values are declared as unsigned longs, doesnt seem to be an overflow issue as it happens
-      straight away
-      Have read online that the millis implementation can mess up depending on cpu freq and bit size
-      but after printing the output of all these values that doesnt seem to be the case?
-      previous_time is updated from the update_encoder ISR
+      Check if motor has stalled by making sure time between encoder ticks
+      doesnt exceed global stall_time variable (currently set to 100ms)
       */
       if (timer >= stall_time) {
         Serial.println("Motor stalled");
@@ -189,7 +183,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
     	client.publish("pihouse/windows/status", "closed");
     	encoder_value = 0;
       motor_back();
-    	encoder_count(rotations); 
+    	encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
     	motor_stop();
     	Serial.println("Motor stopped");
     }
