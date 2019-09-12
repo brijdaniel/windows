@@ -2,7 +2,7 @@
 #include "Encoder.h"
 
 // Class constructur
-Encoder::Encoder(char encoderPin) {
+Encoder::Encoder(char encoderPin, void (* encoder_dispatch)) {
 	// Set up pin
 	pinMode(encoderPin, INPUT_PULLUP);
 
@@ -10,6 +10,12 @@ Encoder::Encoder(char encoderPin) {
 	_encoderPin = encoderPin;
 	_encoder_value = 0;
 	_stall_time = 100; // 100ms
+
+	// Declare update_encoder as ISR
+	void ICACHE_RAM_ATTR update_encoder();
+	
+	// Set encoder interrupt to pin
+	attachInterrupt(digitalPinToInterrupt(encoderPin), void (* encoder_dispatch), FALLING);
 };
 
 /* 

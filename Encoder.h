@@ -4,7 +4,7 @@
 
 class Encoder {
 	public:
-		Encoder(char encoderPin);
+		Encoder(char encoderPin, void (* encoder_dispatch));
 		void encoder_count(float rotations);
 		void update_encoder();
 		

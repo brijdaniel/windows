@@ -17,11 +17,14 @@ Motor motor1(enable1Pin, motor1Pin1, motor1Pin2, speed);
 // Encoder pin
 const char encoder1Pin = D5;
 
-// Create encoder object(s)
-Encoder encoder1(encoder1Pin);
+// Encoder interrupt forward dispatch for ISR
+void encoder_dispatch();
 
-// Declare update_encoder as ISR
-void ICACHE_RAM_ATTR encoder1.update_encoder();
+// Create encoder object(s), include interrupt dispatch
+Encoder encoder1(encoder1Pin, &encoder_dispatch);
+
+// Declare update_encoder as ISR - moved to Encoder.cpp
+//void ICACHE_RAM_ATTR encoder1.update_encoder();
 
 // Declare Window status variable
 char* window_status;
@@ -34,8 +37,8 @@ void setup() {
 	// Start serial comms
 	Serial.begin(115200);
 
-	// Set encoder interrupt to pin
-	attachInterrupt(digitalPinToInterrupt(encoder1Pin), encoder1.update_encoder, FALLING);
+	// Set encoder interrupt to pin - moved to Encoder.cpp
+	//attachInterrupt(digitalPinToInterrupt(encoder1Pin), encoder1.update_encoder, FALLING);
 
 	// Connect to wifi
 	Serial.print("Connecting to ");
@@ -45,7 +48,7 @@ void setup() {
 	while (WiFi.status() != WL_CONNECTED) {
 	  delay(500);
 	  Serial.print(".");
-	}
+	};
 
 	// Print IP Address of the ESP8266
 	Serial.println("WiFi connected");
@@ -59,15 +62,14 @@ void setup() {
 	// Check if connection was successful
 	if (client.connect(clientID)) {
 	  Serial.println("Connected to MQTT Broker!");
-	}
-	else {
+	} else {
 	  Serial.println("Connection to MQTT Broker failed...");
-	}
+	};
   	// Subscribe to mqtt topics and publish request for window status from server database
 	client.subscribe("pihouse/windows/control");
 	client.subscribe("pihouse/windows/status");
 	client.publish("pihouse/windows/status", "request");
-}
+};
 
 // MQTT callback function, executed when a message is received
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -79,7 +81,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   	payload[length] = '\0';
   	window_status = (char*)payload; 
     Serial.println(window_status); 
-  }
+  };
   
   /* 
   if topic is control, ie command to open or close window, then payload will be json
@@ -116,11 +118,15 @@ void callback(char* topic, byte* payload, unsigned int length) {
     	encoder1.encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
     	motor1.m_stop();
     	Serial.println("Motor stopped");
-    }
-  }
-}
+    };
+  };
+};
 
 // Main arduino loop, just runs MQTT loop, everthing else is interrupt driven
 void loop() {
 	client.loop();
-}
+};
+
+void encoder_dispatch() {
+	encoder1.update_encoder();
+};
