@@ -19,9 +19,9 @@ Also checks time since last encoder tick, to make sure motor hasn't stalled
 This function is essentially just a while loop that does nothing, as when this
 function ends, the next function to be called is motor_stop
 */
-void encoder_count(float rotations) {
+void Encoder::encoder_count(float rotations) {
 	_rotations = 150*11*rotations; // 150:1 gearbox reduction and 11 ticks per rotation
-	encoder_value = 0;
+	_encoder_value = 0;
 	while (_encoder_value < _rotations) {
 		// Motor stall monitoring
 		if (_encoder_value > 50) { // make sure the motor has spun up to speed before we check if its stalled
@@ -51,7 +51,7 @@ void ICACHE_RAM_ATTR encoder.update_encoder();
 Then interrupt must be attached to encoder pin, ie:
 attachInterrupt(digitalPinToInterrupt(encoderPin), encoder.update_encoder, FALLING);
 */
-void update_encoder() {
+void Encoder::update_encoder() {
 	_encoder_value++;
 	_previous_time = millis();
 };
