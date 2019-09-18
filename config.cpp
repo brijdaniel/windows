@@ -8,3 +8,7 @@ const char* wifiPassword = "KPHGRATZC9MJHNP";
 const char* mqttServer = "10.1.1.3";
 const int mqttPort = 1883;
 const char* clientID = "ESP8266";
+
+// Subscription channels
+const char* controlChannel = "pihouse/windows/control";
+const char* statusChannel = "pihouse/windows/status";

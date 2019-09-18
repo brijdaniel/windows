@@ -5,6 +5,7 @@
 #include "Motor.h"
 #include "Encoder.h"
 #include "wifiConnection.h"
+#include "MQTTConnection.h"
 
 // Motor pins and speed
 const char motor1Pin1 = D7;
@@ -33,25 +34,11 @@ WiFiClient wifiClient;
 PubSubClient client(mqttServer, mqttPort, wifiClient);
 
 void setup() {
-	// Start serial comms
+	// Start serial comms, connect to Wifi and MQTT
 	Serial.begin(115200);
-
 	connect_wifi();
-
-	// Connect to MQTT Broker
-	client.setServer(mqttServer, mqttPort);
-	client.setCallback(callback);
-
-	// Check if connection was successful
-	if (client.connect(clientID)) {
-	  Serial.println("Connected to MQTT Broker!");
-	} else {
-	  Serial.println("Connection to MQTT Broker failed...");
-	};
-  	// Subscribe to mqtt topics and publish request for window status from server database
-	client.subscribe("pihouse/windows/control");
-	client.subscribe("pihouse/windows/status");
-	client.publish("pihouse/windows/status", "request");
+  client.setCallback(callback);
+	connect_MQTT(client);
 };
 
 // MQTT callback function, executed when a message is received
