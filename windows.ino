@@ -4,6 +4,7 @@
 #include "config.h"
 #include "Motor.h"
 #include "Encoder.h"
+#include "wifiConnection.h"
 
 // Motor pins and speed
 const char motor1Pin1 = D7;
@@ -18,6 +19,7 @@ Motor motor1(enable1Pin, motor1Pin1, motor1Pin2, speed);
 const char encoder1Pin = D5;
 
 // Encoder interrupt forward dispatch for ISR
+// Must be put into RAM as it is part of the ISR function tree
 void ICACHE_RAM_ATTR encoder_dispatch();
 
 // Create encoder object(s), include interrupt dispatch
@@ -34,20 +36,7 @@ void setup() {
 	// Start serial comms
 	Serial.begin(115200);
 
-	// Connect to wifi
-	Serial.print("Connecting to ");
-  	Serial.println(ssid);
-	WiFi.begin(ssid, wifiPassword);
-
-	while (WiFi.status() != WL_CONNECTED) {
-	  delay(500);
-	  Serial.print(".");
-	};
-
-	// Print IP Address of the ESP8266
-	Serial.println("WiFi connected");
-	Serial.print("IP address: ");
-	Serial.println(WiFi.localIP());
+	connect_wifi();
 
 	// Connect to MQTT Broker
 	client.setServer(mqttServer, mqttPort);
