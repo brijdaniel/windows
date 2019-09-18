@@ -13,11 +13,11 @@ const char motor1Pin2 = D6;
 const char enable1Pin = D8; 
 int speed = 1000; // full speed
 
-// Create motor object(s)
-Motor motor1(enable1Pin, motor1Pin1, motor1Pin2, speed);
-
 // Encoder pin
 const char encoder1Pin = D5;
+
+// Create motor object(s)
+Motor motor1(enable1Pin, motor1Pin1, motor1Pin2, speed);
 
 // Encoder interrupt forward dispatch for ISR
 // Must be put into RAM as it is part of the ISR function tree
@@ -94,6 +94,15 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
 // Main arduino loop, just runs MQTT loop, everthing else is interrupt driven
 void loop() {
+	/*
+   Connection to broker seems to drop after motor is driven once?
+   The below reconnection clause works to reconnect after operation most times
+   But sometimes it gets stuck in a situation where it is constantly reconnecting
+   and as such becomes unresponsive
+	 */
+	if (!client.connected()) {
+    connect_MQTT(client);
+	};
 	client.loop();
 };
 
