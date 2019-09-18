@@ -18,13 +18,10 @@ Motor motor1(enable1Pin, motor1Pin1, motor1Pin2, speed);
 const char encoder1Pin = D5;
 
 // Encoder interrupt forward dispatch for ISR
-void encoder_dispatch();
+void ICACHE_RAM_ATTR encoder_dispatch();
 
 // Create encoder object(s), include interrupt dispatch
 Encoder encoder1(encoder1Pin, &encoder_dispatch);
-
-// Declare update_encoder as ISR - moved to Encoder.cpp
-//void ICACHE_RAM_ATTR encoder1.update_encoder();
 
 // Declare Window status variable
 char* window_status;
@@ -36,9 +33,6 @@ PubSubClient client(mqttServer, mqttPort, wifiClient);
 void setup() {
 	// Start serial comms
 	Serial.begin(115200);
-
-	// Set encoder interrupt to pin - moved to Encoder.cpp
-	//attachInterrupt(digitalPinToInterrupt(encoder1Pin), encoder1.update_encoder, FALLING);
 
 	// Connect to wifi
 	Serial.print("Connecting to ");
