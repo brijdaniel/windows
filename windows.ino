@@ -29,6 +29,9 @@ Encoder encoder1(encoder1Pin, &encoder_dispatch);
 // Declare Window status variable
 char* window_status;
 
+// Declare counter for MQTT reconnection
+long lastReconnectAttempt = 0;
+
 // Setup mqtt client
 WiFiClient wifiClient;
 PubSubClient client(mqttServer, mqttPort, wifiClient);
@@ -46,10 +49,11 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
 
-  // if topic is window status then store and print window_status
-  if (strcmp(topic, "pihouse/windows/status") == 0) {
+  // if message is a response to a status request, then store and print window_status
+  if (strcmp(topic, "pihouse/windows/status/request") == 0) {
   	payload[length] = '\0';
   	window_status = (char*)payload; 
+    window_status[length] = '\0'; // terminate str
     Serial.println(window_status); 
   };
   
@@ -76,14 +80,14 @@ void callback(char* topic, byte* payload, unsigned int length) {
     
     if (direction == "open" && window_status != "open") {
   	  Serial.println("Motor Forward");
-      client.publish("pihouse/windows/status", "open");
+      client.publish(statusChannel, "open");
   	  motor1.m_fwd();
   	  encoder1.encoder_count(rotations); 
   	  motor1.m_stop();
   	  Serial.println("Motor stopped");
     } else if (direction == "close" && window_status != "closed") {
     	Serial.println("Motor Backwards"); 
-    	client.publish("pihouse/windows/status", "closed");
+    	client.publish(statusChannel, "closed");
       motor1.m_back();
     	encoder1.encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
     	motor1.m_stop();
@@ -95,16 +99,29 @@ void callback(char* topic, byte* payload, unsigned int length) {
 // Main arduino loop, just runs MQTT loop, everthing else is interrupt driven
 void loop() {
 	/*
-   Connection to broker seems to drop after motor is driven once?
-   The below reconnection clause works to reconnect after operation most times
-   But sometimes it gets stuck in a situation where it is constantly reconnecting
-   and as such becomes unresponsive
+   Connection fails rc=-4 every 15s, which is the MQTT_CONNECTION_TIMEOUT. This can be
+   modified in pubsubclient.h
+   https://github.com/knolleary/pubsubclient/issues/159
 	 */
-	if (!client.connected()) {
-    connect_MQTT(client);
-	};
-	client.loop();
-};
+  if (!client.connected()) {
+    long now = millis();
+    Serial.println(client.state());
+    client.disconnect();
+    
+    if (now - lastReconnectAttempt > 5000) {
+      lastReconnectAttempt = now;
+      // Attempt to reconnect
+      if (reconnect_MQTT(client)) {
+        lastReconnectAttempt = 0;
+      }
+    }
+  } else {
+    // Client connected
+    client.loop();
+  }
+  //Serial.println(ESP.getFreeHeap());
+  ESP.wdtFeed();
+}
 
 void encoder_dispatch() {
 	encoder1.update_encoder();

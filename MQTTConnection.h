@@ -6,4 +6,6 @@
 
 void connect_MQTT(PubSubClient client);
 
+boolean reconnect_MQTT(PubSubClient client);
+
 #endif
