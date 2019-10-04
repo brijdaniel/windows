@@ -6,6 +6,11 @@ void connect_wifi(void){
 	// Connect to wifi
 	Serial.print("Connecting to ");
   Serial.println(ssid);
+
+  // Explicitly set it to client only, otherwise
+  // by default it acts as both wifi client and 
+  // access point
+  WiFi.mode(WIFI_STA);
 	
 	if (WiFi.SSID() != ssid) {
 	  WiFi.begin(ssid, wifiPassword);

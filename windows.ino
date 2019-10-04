@@ -113,15 +113,14 @@ void loop() {
       // Attempt to reconnect
       if (reconnect_MQTT(client)) {
         lastReconnectAttempt = 0;
-      }
-    }
+      };
+    };
   } else {
     // Client connected
     client.loop();
-  }
-  //Serial.println(ESP.getFreeHeap());
-  ESP.wdtFeed();
-}
+    //client.PINGREQ(); // need to do something like this??
+  };
+};
 
 void encoder_dispatch() {
 	encoder1.update_encoder();
