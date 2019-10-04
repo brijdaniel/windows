@@ -5,9 +5,15 @@
 void connect_wifi(void){
 	// Connect to wifi
 	Serial.print("Connecting to ");
-  	Serial.println(ssid);
-	WiFi.begin(ssid, wifiPassword);
-
+  Serial.println(ssid);
+	
+	if (WiFi.SSID() != ssid) {
+	  WiFi.begin(ssid, wifiPassword);
+    WiFi.persistent(true);
+    WiFi.setAutoConnect(true);
+    WiFi.setAutoReconnect(true);
+	};
+ 
 	while (WiFi.status() != WL_CONNECTED) {
 	  delay(500);
 	  Serial.print(".");
