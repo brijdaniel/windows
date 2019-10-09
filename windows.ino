@@ -50,7 +50,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Serial.println(topic);
 
   // if message is a response to a status request, then store and print window_status
-  if (strcmp(topic, "pihouse/windows/status/request") == 0) {
+  if (strcmp(topic, "pihouse/windows/status") == 0) {
   	payload[length] = '\0';
   	window_status = (char*)payload; 
     window_status[length] = '\0'; // terminate str
@@ -96,12 +96,17 @@ void callback(char* topic, byte* payload, unsigned int length) {
   };
 };
 
-// Main arduino loop, just runs MQTT loop, everthing else is interrupt driven
+/* 
+Main loop: 
+ - Check connection to MQTT server
+ - If connection has failed, then fully disconnect, and continue trying to reconnect
+   every 5 secs
+ - Else, run MQTT loop
+*/
 void loop() {
 	/*
-   Connection fails rc=-4 every 15s, which is the MQTT_CONNECTION_TIMEOUT. This can be
-   modified in pubsubclient.h
-   https://github.com/knolleary/pubsubclient/issues/159
+   Modified the PubSubClient source code to fix MQTT_CONNECTION_TIMEOUT failure
+   Failure was result of calculation using UL, which appears to cause problems with ESP
 	 */
   if (!client.connected()) {
     long now = millis();
@@ -116,9 +121,7 @@ void loop() {
       };
     };
   } else {
-    // Client connected
     client.loop();
-    //client.PINGREQ(); // need to do something like this??
   };
 };
 

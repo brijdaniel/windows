@@ -16,16 +16,16 @@ void connect_MQTT(PubSubClient client){
 	
   	// Subscribe to mqtt topics and publish request for window status from server database
 	client.subscribe(controlChannel);
-	client.subscribe(requestChannel);
+  client.subscribe(statusChannel);
 	client.publish(statusChannel, "request");
 };
 
+// Handle reconnection and resubscription if connection drops
 boolean reconnect_MQTT(PubSubClient client) {
   if (client.connect(clientID)) {
     Serial.print("Reconnected successfully with status ");
     Serial.println(client.state());
     client.subscribe(controlChannel);
-    client.subscribe(requestChannel);
     client.publish(statusChannel, "request");
   }
   return client.connected();
