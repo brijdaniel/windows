@@ -63,7 +63,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
   Regardless of if direction is open or close, logic is as follows:
   - Store payload data into direction and rotations variables
   - Check the window isnt already in the state we are trying to drive it to
-  - Publish that the state has changed (this is pre-emptive)
+  - Publish that the state has changed (this is pre-emptive). Set this as a retained msg so ESP receives this status again when it reconnects to broker
   - Set global encoder_value var to 0 (used in the encoder_count fn and incremented by update_encoder ISR)
   - Call fn to start driving motor either fwds or back
   - Start monitoring encoder ticks with encoder_count (this while loop is now blocking, but still getting interrupts from ISR)
@@ -80,18 +80,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
     
     if (direction == "open" && window_status != "open") {
   	  Serial.println("Motor Forward");
-      client.publish(statusChannel, "open");
+      client.publish(statusChannel, "open", true);
   	  motor1.m_fwd();
   	  encoder1.encoder_count(rotations); 
   	  motor1.m_stop();
   	  Serial.println("Motor stopped");
+      ESP.deepSleep(0); // Put ESP to sleep after it has woken up and completed task
     } else if (direction == "close" && window_status != "closed") {
     	Serial.println("Motor Backwards"); 
-    	client.publish(statusChannel, "closed");
+    	client.publish(statusChannel, "closed", true);
       motor1.m_back();
     	encoder1.encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
     	motor1.m_stop();
     	Serial.println("Motor stopped");
+      ESP.deepSleep(0); // Put ESP to sleep after it has woken up and completed task
     };
   };
 };
@@ -100,7 +102,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 Main loop: 
  - Check connection to MQTT server
  - If connection has failed, then fully disconnect, and continue trying to reconnect
-   every 5 secs
+   every 0.5 secs
  - Else, run MQTT loop
 */
 void loop() {
@@ -113,7 +115,7 @@ void loop() {
     Serial.println(client.state());
     client.disconnect();
     
-    if (now - lastReconnectAttempt > 5000) {
+    if (now - lastReconnectAttempt > 500) {
       lastReconnectAttempt = now;
       // Attempt to reconnect
       if (reconnect_MQTT(client)) {
@@ -122,6 +124,11 @@ void loop() {
     };
   } else {
     client.loop();
+  };
+
+  // Put ESP into deep sleep 10s after it boots up, or if wakes up and doesnt receive a control msg
+  if (millis() >= 10000) {
+    ESP.deepSleep(0);
   };
 };
 
