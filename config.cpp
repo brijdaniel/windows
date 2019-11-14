@@ -12,6 +12,8 @@ const char* clientID = "ESP8266";
 // Subscription channels
 const char* controlChannel = "pihouse/windows/control";
 const char* statusChannel = "pihouse/windows/status";
+const char* connectedChannel = "pihouse/windows/connected";
+
 
 /*
 // Motor pins and speed
