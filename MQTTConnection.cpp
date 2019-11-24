@@ -18,6 +18,7 @@ void connect_MQTT(PubSubClient client){
   	// Subscribe to mqtt topics
 	client.subscribe(controlChannel, 1);
     client.subscribe(statusChannel, 1);
+    client.subscribe(connectedChannel);
 
     // Publish message telling the server that the ESP is connected to the MQTT broker
 	client.publish(connectedChannel, "True");
