@@ -85,8 +85,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
   	  motor1.m_fwd();
   	  encoder1.encoder_count(rotations); 
   	  motor1.m_stop();
-      client.publish(connectedChannel, "False", true);
+      client.publish(connectedChannel, "False");
   	  Serial.println("Motor stopped");
+      delay(0.5);
       ESP.deepSleep(0); // Put ESP to sleep after it has woken up and completed task
     } else if (direction == "close" && window_status != "closed") {
     	Serial.println("Motor Backwards"); 
@@ -94,8 +95,9 @@ void callback(char* topic, byte* payload, unsigned int length) {
       motor1.m_back();
     	encoder1.encoder_count(rotations + 2); // +2 rotations to make sure it closes tight (will stall motor) 
     	motor1.m_stop();
-      client.publish(connectedChannel, "False", true);
+      client.publish(connectedChannel, "False");
     	Serial.println("Motor stopped");
+      delay(0.5);
       ESP.deepSleep(0); // Put ESP to sleep after it has woken up and completed task
     };
   };
@@ -116,7 +118,7 @@ void loop() {
   if (!client.connected()) {
     long now = millis();
     Serial.println(client.state());
-    client.publish(connectedChannel, "False", true);
+    client.publish(connectedChannel, "False");
     client.disconnect();
     
     if (now - lastReconnectAttempt > 500) {
@@ -132,7 +134,8 @@ void loop() {
 
   // Put ESP into deep sleep 10s after it boots up, or if wakes up and doesnt receive a control msg
   if (millis() >= 10000) {
-    client.publish(connectedChannel, "False", true);
+    client.publish(connectedChannel, "False");
+    delay(0.5);
     ESP.deepSleep(0);
   };
 };
